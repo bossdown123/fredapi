@@ -12,6 +12,7 @@ else:
 import textwrap
 import fredapi
 import fredapi.fred
+import pandas as pd
 
 
 # Change here if you want to make actual calls to Fred
@@ -112,6 +113,44 @@ payems_info_call = HTTPCall('series?series_id=PAYEMS',
           last_updated="2015-06-05 08:47:20-05"
           popularity="86" notes="..." />
 </seriess>'''))
+
+gdp_info_call = HTTPCall('series?series_id=GDP',
+                        response=textwrap.dedent('''\
+<?xml version="1.0" encoding="utf-8" ?>
+<seriess realtime_start="2024-01-01" realtime_end="2024-01-01">
+  <series id="GDP" realtime_start="2024-01-01"
+          realtime_end="2024-01-01"
+          title="Gross Domestic Product"
+          observation_start="1947-01-01"
+          observation_end="2023-10-01"
+          frequency="Quarterly" frequency_short="Q"
+          units="Billions of Dollars"
+          units_short="Bil. of $"
+          seasonal_adjustment="Seasonally Adjusted Annual Rate"
+          seasonal_adjustment_short="SAAR"
+          last_updated="2024-01-01 08:00:00-06"
+          popularity="90" notes="..." />
+</seriess>'''))
+
+gdp_all_releases_call = HTTPCall('series/observations?series_id=GDP&realtime_start=1947-01-01&',
+                                response=textwrap.dedent('''\
+<?xml version="1.0" encoding="utf-8" ?>
+<observations realtime_start="1947-01-01" realtime_end="2024-01-01"
+              observation_start="1947-01-01"
+              observation_end="2023-10-01" units="lin"
+              output_type="1" file_type="xml"
+              order_by="observation_date" sort_order="asc"
+              count="3" offset="0" limit="100000">
+  <observation realtime_start="2013-01-30" realtime_end="2013-02-27"
+               date="2012-10-01" value="16255.0"/>
+  <observation realtime_start="2013-02-28" realtime_end="2013-03-27"
+               date="2012-10-01" value="16220.4"/>
+  <observation realtime_start="2013-03-28" realtime_end="9999-12-31"
+               date="2012-10-01" value="16239.1"/>
+</observations>'''))
+
+vintage_dates_error_call = HTTPCall('series/observations?series_id=T10Y2Y&realtime_start=1776-07-04&realtime_end=9999-12-31',
+                                   side_effect=None)
 
 
 class TestFred(unittest.TestCase):
@@ -247,6 +286,56 @@ class TestFred(unittest.TestCase):
         PCPI01005          0        1969-01-01                       NSA''')
         for aline, eline in zip(actual.split('\n'), expected.split('\n')):
             self.assertEqual(aline.strip(), eline.strip())
+
+    @mock.patch('fredapi.fred.urlopen')
+    def test_get_series_all_releases(self, urlopen):
+        """Test retrieval of all releases for GDP series."""
+        # Mock two calls: first for series info, second for observations
+        def urlopen_side_effect(url):
+            mock_response = mock.MagicMock()
+            if 'series/observations' in url:
+                mock_response.read.return_value = gdp_all_releases_call.response
+            elif 'series?series_id=GDP' in url:
+                mock_response.read.return_value = gdp_info_call.response
+            return mock_response
+        
+        if self.fake_fred_call:
+            urlopen.side_effect = urlopen_side_effect
+        else:
+            urlopen.side_effect = self.__original_urlopen
+            
+        df = self.fred.get_series_all_releases('GDP')
+        
+        # Verify the DataFrame structure
+        self.assertIn('date', df.columns)
+        self.assertIn('realtime_start', df.columns)
+        self.assertIn('value', df.columns)
+        self.assertEqual(len(df), 3)
+        
+    @mock.patch('fredapi.fred.urlopen')
+    def test_get_series_first_release(self, urlopen):
+        """Test retrieval of first releases for GDP series."""
+        # Mock two calls: first for series info, second for observations
+        def urlopen_side_effect(url):
+            mock_response = mock.MagicMock()
+            if 'series/observations' in url:
+                mock_response.read.return_value = gdp_all_releases_call.response
+            elif 'series?series_id=GDP' in url:
+                mock_response.read.return_value = gdp_info_call.response
+            return mock_response
+        
+        if self.fake_fred_call:
+            urlopen.side_effect = urlopen_side_effect
+        else:
+            urlopen.side_effect = self.__original_urlopen
+            
+        data = self.fred.get_series_first_release('GDP')
+        
+        # Should only have one entry per date (first release only)
+        self.assertEqual(len(data), 1)
+        # Verify it's a Series with date index
+        self.assertIsInstance(data, pd.Series)
+
 
 
 if __name__ == '__main__':
