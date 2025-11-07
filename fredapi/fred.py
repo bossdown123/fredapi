@@ -1,6 +1,8 @@
 
 import os
 import sys
+import textwrap
+import datetime
 import xml.etree.ElementTree as ET
 if sys.version_info[0] >= 3:
     import urllib.request as url_request
@@ -234,9 +236,9 @@ class Fred:
         series_id : str
             Fred series id such as 'GDP'
         realtime_start : str, optional
-            specifies the realtime_start value used in the query, defaults to the earliest possible start date allowed by Fred
+            specifies the realtime_start value used in the query, defaults to using the series' observation_start date
         realtime_end : str, optional
-            specifies the realtime_end value used in the query, defaults to the latest possible end date allowed by Fred
+            specifies the realtime_end value used in the query, defaults to using today's date
 
         Returns
         -------
@@ -244,35 +246,52 @@ class Fred:
             a DataFrame with columns 'date', 'realtime_start' and 'value' where 'date' is the observation period and 'realtime_start'
             is when the corresponding value (either first release or revision) is reported.
         """
-        if realtime_start is None:
-            realtime_start = self.earliest_realtime_start
-        if realtime_end is None:
-            realtime_end = self.latest_realtime_end
+        if realtime_start is None or realtime_end is None:
+            # Get series info to use reasonable defaults for realtime period
+            info = self.get_series_info(series_id)
+            if realtime_start is None:
+                # Use observation_start as default to avoid requesting too many vintage dates
+                realtime_start = info['observation_start']
+            if realtime_end is None:
+                # Use today's date as default
+                realtime_end = datetime.date.today().strftime('%Y-%m-%d')
+
         url = "%s/series/observations?series_id=%s&realtime_start=%s&realtime_end=%s" % (self.root_url,
                                                                                          series_id,
                                                                                          realtime_start,
                                                                                          realtime_end)
-        root = self.__fetch_data(url)
+        try:
+            root = self.__fetch_data(url)
+        except ValueError as e:
+            # Provide helpful error message if vintage dates limit is exceeded
+            if 'vintage dates' in str(e) and 'exceeds the maximum' in str(e):
+                raise ValueError(textwrap.dedent("""\
+                    {}
+
+                    You can fix this by specifying a narrower realtime_start and realtime_end range.
+                    For example:
+                        fred.get_series_all_releases('{}', realtime_start='2020-01-01', realtime_end='2024-12-31')
+                    """.format(str(e), series_id)))
+            raise
+
         if root is None:
             raise ValueError('No data exists for series id: ' + series_id)
-        data = {}
-        i = 0
+        data = []
         for child in root:
             val = child.get('value')
             if val == self.nan_char:
                 val = float('NaN')
             else:
                 val = float(val)
-            realtime_start = self._parse(child.get('realtime_start'))
+            realtime_start_val = self._parse(child.get('realtime_start'))
             # realtime_end = self._parse(child.get('realtime_end'))
             date = self._parse(child.get('date'))
 
-            data[i] = {'realtime_start': realtime_start,
-                       # 'realtime_end': realtime_end,
-                       'date': date,
-                       'value': val}
-            i += 1
-        data = pd.DataFrame(data).T
+            data.append({'realtime_start': realtime_start_val,
+                         # 'realtime_end': realtime_end,
+                         'date': date,
+                         'value': val})
+        data = pd.DataFrame(data)
         return data
 
     def get_series_vintage_dates(self, series_id):
