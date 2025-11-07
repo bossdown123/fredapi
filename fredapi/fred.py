@@ -253,7 +253,7 @@ class Fred:
             if realtime_end is None:
                 # Use today's date as default
                 realtime_end = pd.Timestamp.today().strftime('%Y-%m-%d')
-        
+
         url = "%s/series/observations?series_id=%s&realtime_start=%s&realtime_end=%s" % (self.root_url,
                                                                                          series_id,
                                                                                          realtime_start,
@@ -266,13 +266,13 @@ class Fred:
                 import textwrap
                 raise ValueError(textwrap.dedent("""\
                     {}
-                    
+
                     You can fix this by specifying a narrower realtime_start and realtime_end range.
                     For example:
                         fred.get_series_all_releases('{}', realtime_start='2020-01-01', realtime_end='2024-12-31')
                     """.format(str(e), series_id)))
             raise
-        
+
         if root is None:
             raise ValueError('No data exists for series id: ' + series_id)
         data = []
@@ -287,9 +287,9 @@ class Fred:
             date = self._parse(child.get('date'))
 
             data.append({'realtime_start': realtime_start_val,
-                       # 'realtime_end': realtime_end,
-                       'date': date,
-                       'value': val})
+                         # 'realtime_end': realtime_end,
+                         'date': date,
+                         'value': val})
         data = pd.DataFrame(data)
         return data
 

@@ -115,7 +115,7 @@ payems_info_call = HTTPCall('series?series_id=PAYEMS',
 </seriess>'''))
 
 gdp_info_call = HTTPCall('series?series_id=GDP',
-                        response=textwrap.dedent('''\
+                         response=textwrap.dedent('''\
 <?xml version="1.0" encoding="utf-8" ?>
 <seriess realtime_start="2024-01-01" realtime_end="2024-01-01">
   <series id="GDP" realtime_start="2024-01-01"
@@ -133,7 +133,7 @@ gdp_info_call = HTTPCall('series?series_id=GDP',
 </seriess>'''))
 
 gdp_all_releases_call = HTTPCall('series/observations?series_id=GDP&realtime_start=1947-01-01&',
-                                response=textwrap.dedent('''\
+                                 response=textwrap.dedent('''\
 <?xml version="1.0" encoding="utf-8" ?>
 <observations realtime_start="1947-01-01" realtime_end="2024-01-01"
               observation_start="1947-01-01"
@@ -150,7 +150,7 @@ gdp_all_releases_call = HTTPCall('series/observations?series_id=GDP&realtime_sta
 </observations>'''))
 
 vintage_dates_error_call = HTTPCall('series/observations?series_id=T10Y2Y&realtime_start=1776-07-04&realtime_end=9999-12-31',
-                                   side_effect=None)
+                                    side_effect=None)
 
 
 class TestFred(unittest.TestCase):
@@ -298,20 +298,20 @@ class TestFred(unittest.TestCase):
             elif 'series?series_id=GDP' in url:
                 mock_response.read.return_value = gdp_info_call.response
             return mock_response
-        
+
         if self.fake_fred_call:
             urlopen.side_effect = urlopen_side_effect
         else:
             urlopen.side_effect = self.__original_urlopen
-            
+
         df = self.fred.get_series_all_releases('GDP')
-        
+
         # Verify the DataFrame structure
         self.assertIn('date', df.columns)
         self.assertIn('realtime_start', df.columns)
         self.assertIn('value', df.columns)
         self.assertEqual(len(df), 3)
-        
+
     @mock.patch('fredapi.fred.urlopen')
     def test_get_series_first_release(self, urlopen):
         """Test retrieval of first releases for GDP series."""
@@ -323,19 +323,18 @@ class TestFred(unittest.TestCase):
             elif 'series?series_id=GDP' in url:
                 mock_response.read.return_value = gdp_info_call.response
             return mock_response
-        
+
         if self.fake_fred_call:
             urlopen.side_effect = urlopen_side_effect
         else:
             urlopen.side_effect = self.__original_urlopen
-            
+
         data = self.fred.get_series_first_release('GDP')
-        
+
         # Should only have one entry per date (first release only)
         self.assertEqual(len(data), 1)
         # Verify it's a Series with date index
         self.assertIsInstance(data, pd.Series)
-
 
 
 if __name__ == '__main__':
