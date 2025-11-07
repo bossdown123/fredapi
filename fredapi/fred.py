@@ -1,6 +1,8 @@
 
 import os
 import sys
+import textwrap
+import datetime
 import xml.etree.ElementTree as ET
 if sys.version_info[0] >= 3:
     import urllib.request as url_request
@@ -252,7 +254,7 @@ class Fred:
                 realtime_start = info['observation_start']
             if realtime_end is None:
                 # Use today's date as default
-                realtime_end = pd.Timestamp.today().strftime('%Y-%m-%d')
+                realtime_end = datetime.date.today().strftime('%Y-%m-%d')
 
         url = "%s/series/observations?series_id=%s&realtime_start=%s&realtime_end=%s" % (self.root_url,
                                                                                          series_id,
@@ -263,7 +265,6 @@ class Fred:
         except ValueError as e:
             # Provide helpful error message if vintage dates limit is exceeded
             if 'vintage dates' in str(e) and 'exceeds the maximum' in str(e):
-                import textwrap
                 raise ValueError(textwrap.dedent("""\
                     {}
 
